@@ -1,0 +1,33 @@
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Cross-Origin-Opener-Policy = "same-origin"
+    # Allow Supabase + fonts + optional PostHog. Tighten further if you drop a CDN.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com https://js.hcaptcha.com https://*.hcaptcha.com https://*.posthog.com https://us.i.posthog.com https://eu.i.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://challenges.cloudflare.com https://*.hcaptcha.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; frame-src https://challenges.cloudflare.com https://*.hcaptcha.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com https://*.hcaptcha.com https://*.posthog.com https://us.i.posthog.com https://eu.i.posthog.com https://formsubmit.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://formsubmit.co; object-src 'none'"
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/api/public-config"
+  to = "/.netlify/functions/public-config"
+  status = 200
+
+[[redirects]]
+  from = "/"
+  to = "/desktop-preview.html"
+  status = 200
+
+[[redirects]]
+  from = "/app"
+  to = "/desktop-preview.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404

@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neurosync App Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        .phone-container {
+            max-width: 375px;
+            margin: 20px auto;
+            background: #000;
+            border-radius: 30px;
+            padding: 8px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .phone-screen {
+            background: #f8fafc;
+            border-radius: 22px;
+            height: 812px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-bar {
+            height: 44px;
+            background: #f8fafc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .screen-content {
+            height: calc(100% - 44px - 80px);
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding-bottom: 20px;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 8px;
+            border-radius: 8px;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+
+        .nav-item.active {
+            background: #f1f5f9;
+        }
+
+        .nav-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-icon svg {
+            width: 100%;
+            height: 100%;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        .nav-item.active .nav-icon svg {
+            opacity: 1;
+        }
+
+        .nav-label {
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .nav-item.active .nav-label {
+            color: #2563eb;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .streak-card {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            text-align: center;
+            padding: 24px;
+        }
+
+        .streak-number {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .streak-label {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #2563eb;
+            width: 65%;
+            border-radius: 4px;
+        }
+
+        .week-bars {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 40px;
+            margin: 12px 0;
+        }
+
+        .week-bar {
+            width: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            height: 20px;
+        }
+
+        .week-bar.active {
+            background: #2563eb;
+            height: 32px;
+        }
+
+        .action-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .action-card {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .action-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .action-subtitle {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .form-row .form-control {
+            flex: 1;
+        }
+
+        .timer-display {
+            font-size: 56px;
+            font-weight: 800;
+            text-align: center;
+            margin: 20px 0;
+            color: #0f172a;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .deck-card {
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .deck-card.selected {
+            border-color: #2563eb;
+        }
+
+        .deck-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .deck-cards {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .deck-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .study-card {
+            width: 100%;
+            height: 200px;
+            background: #2563eb;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .study-card:hover {
+            transform: scale(1.02);
+        }
+
+        .answer-buttons {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .answer-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .wrong-btn {
+            background: #ef4444;
+            color: white;
+        }
+
+        .correct-btn {
+            background: #10b981;
+            color: white;
+        }
+
+        .notebook-card {
+            border-left: 4px solid #2563eb;
+        }
+
+        .notebook-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .notebook-notes {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .canvas-preview {
+            height: 200px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            margin: 16px 0;
+        }
+
+        .reminder-card {
+            border-left: 4px solid #10b981;
+        }
+
+        .reminder-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .reminder-time {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .chat-messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            background: white;
+        }
+
+        .message {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            max-width: 80%;
+        }
+
+        .message.user {
+            background: #2563eb;
+            color: white;
+            margin-left: auto;
+        }
+
+        .message.ai {
+            background: #f1f5f9;
+            color: #0f172a;
+            margin-right: auto;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+        }
+
+        .empty-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .empty-subtitle {
+            font-size: 14px;
+        }
+
+        .study-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            margin: -20px -20px 20px -20px;
+        }
+
+        .back-btn {
+            color: #2563eb;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .study-stats {
+            background: #f1f5f9;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-container">
+        <div class="phone-screen">
+            <div class="status-bar">
+                <span>9:41</span>
+                <span>Neurosync</span>
+                <span>100%</span>
+            </div>
+
+            <div class="screen-content">
+                <!-- Home Screen -->
+                <div class="screen active" id="home">
+                    <div class="header">
+                        <h1 class="title">Welcome to Neurosync</h1>
+                    </div>
+
+                    <div class="card streak-card">
+                        <div class="streak-number">7</div>
+                        <div class="streak-label">Day Streak</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div style="text-align: center; margin-top: 8px; font-size: 14px;">45/60 minutes</div>
+                        <div class="week-bars">
+                            <div class="week-bar active"></div>
+                            <div class="week-bar active"></div>
+                            <div class="week-bar"></div>
+                            <div class="week-bar active"></div>
+                            <div class="week-bar active"></div>
+                            <div class="week-bar"></div>
+                            <div class="week-bar active"></div>
+                        </div>
+                        <button class="btn" style="margin-top: 16px;">+ Add Study Time</button>
+                    </div>
+
+                    <div class="action-grid">
+                        <div class="action-card">
+                            <div class="action-title">Focus Timer</div>
+                            <div class="action-subtitle">25 min sessions</div>
+                        </div>
+                        <div class="action-card">
+                            <div class="action-title">Binaural Beats</div>
+                            <div class="action-subtitle">Enhance focus</div>
+                        </div>
+                        <div class="action-card">
+                            <div class="action-title">Flashcards</div>
+                            <div class="action-subtitle">Active recall</div>
+                        </div>
+                        <div class="action-card">
+                            <div class="action-title">AI Advisor</div>
+                            <div class="action-subtitle">Study tips</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Beats Screen -->
+                <div class="screen" id="beats">
+                    <div class="header">
+                        <h1 class="title">Binaural Beats</h1>
+                    </div>
+
+                    <div class="card">
+                        <div class="form-group">
+                            <label class="form-label">Brainwave Type</label>
+                            <select class="form-control">
+                                <option>Beta (14-30 Hz — Active Focus)</option>
+                                <option>Alpha (8-13 Hz — Relaxed Focus)</option>
+                                <option>Gamma (40 Hz — Peak Cognition)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Base Frequency (Hz)</label>
+                            <input type="number" class="form-control" value="200">
+                        </div>
+                        <div class="button-row">
+                            <button class="btn btn-primary">Play</button>
+                            <button class="btn btn-secondary">Stop</button>
+                        </div>
+                        <div style="font-size: 14px; color: #64748b; margin-top: 8px;">
+                            Use headphones for best experience
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timer Screen -->
+                <div class="screen" id="timer">
+                    <div class="header">
+                        <h1 class="title">Focus Timer</h1>
+                    </div>
+
+                    <div class="card">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Duration (min)</label>
+                                <input type="number" class="form-control" value="25">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Rounds</label>
+                                <input type="number" class="form-control" value="2">
+                            </div>
+                        </div>
+                        <div class="timer-display">25:00</div>
+                        <div class="button-row">
+                            <button class="btn btn-primary">Start</button>
+                            <button class="btn btn-secondary">Pause</button>
+                            <button class="btn btn-secondary">Reset</button>
+                            <button class="btn btn-success">Lock In</button>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Lock-in Background</label>
+                            <select class="form-control">
+                                <option>Sky</option>
+                                <option>Cat Cafe</option>
+                                <option>Forest</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Flashcards Screen -->
+                <div class="screen" id="flashcards">
+                    <div class="header">
+                        <h1 class="title">Flashcards</h1>
+                        <button class="btn">+ New Deck</button>
+                    </div>
+
+                    <div class="card deck-card selected">
+                        <div class="deck-name">Biology Chapter 5</div>
+                        <div class="deck-cards">12 cards</div>
+                        <div class="deck-actions">
+                            <button class="btn btn-success" style="flex: 1;">+ Add Card</button>
+                            <button class="btn btn-primary" style="flex: 1;">Study</button>
+                        </div>
+                    </div>
+
+                    <div class="card deck-card">
+                        <div class="deck-name">Chemistry Formulas</div>
+                        <div class="deck-cards">8 cards</div>
+                    </div>
+
+                    <!-- Study Mode -->
+                    <div style="display: none;" id="study-mode">
+                        <div class="study-header">
+                            <span class="back-btn">← Back</span>
+                            <span>3 of 12</span>
+                            <div class="study-stats">2/3 correct</div>
+                        </div>
+                        <div class="study-card">
+                            What is the powerhouse of the cell?
+                        </div>
+                        <div class="answer-buttons">
+                            <button class="answer-btn wrong-btn">Wrong</button>
+                            <button class="answer-btn correct-btn">Correct</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes Screen -->
+                <div class="screen" id="notes">
+                    <div class="header">
+                        <h1 class="title">Digital Notes</h1>
+                        <button class="btn">+ New Notebook</button>
+                    </div>
+
+                    <div class="card notebook-card">
+                        <div class="notebook-name">Biology Notes</div>
+                        <div class="notebook-notes">5 notes</div>
+                    </div>
+
+                    <div class="card notebook-card">
+                        <div class="notebook-name">Chemistry Lab</div>
+                        <div class="notebook-notes">3 notes</div>
+                    </div>
+
+                    <div class="card">
+                        <div style="font-weight: 600; margin-bottom: 8px;">Cell Structure Notes</div>
+                        <div class="canvas-preview">
+                            📝 Apple Pencil drawing area
+                        </div>
+                        <div style="font-size: 14px; color: #64748b;">
+                            Created 2 hours ago
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reminders Screen -->
+                <div class="screen" id="reminders">
+                    <div class="header">
+                        <h1 class="title">Study Reminders</h1>
+                    </div>
+
+                    <div class="card">
+                        <div style="font-weight: 600; margin-bottom: 8px;">Add New Reminder</div>
+                        <div class="form-group">
+                            <input type="text" class="form-control" placeholder="Reminder title">
+                        </div>
+                        <div class="form-group">
+                            <input type="text" class="form-control" placeholder="Description">
+                        </div>
+                        <div class="form-row">
+                            <input type="date" class="form-control">
+                            <input type="time" class="form-control">
+                        </div>
+                        <button class="btn btn-primary" style="width: 100%; margin-top: 12px;">Add Reminder</button>
+                    </div>
+
+                    <div class="card reminder-card">
+                        <div class="reminder-title">Study Biology Chapter 5</div>
+                        <div class="reminder-time">Today at 7:00 PM</div>
+                        <div style="margin-top: 8px;">
+                            <span class="status-dot"></span>
+                            <span style="font-size: 14px; color: #64748b;">Active</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Screen -->
+                <div class="screen" id="chat">
+                    <div class="header">
+                        <h1 class="title">AI Study Advisor</h1>
+                    </div>
+
+                    <div class="card">
+                        <div class="form-row">
+                            <input type="text" class="form-control" placeholder="OpenAI API Key" style="flex: 2;">
+                            <select class="form-control" style="flex: 1;">
+                                <option>GPT-4o-mini</option>
+                                <option>GPT-4o</option>
+                            </select>
+                            <button class="btn btn-secondary">Save</button>
+                        </div>
+                    </div>
+
+                    <div class="chat-messages">
+                        <div class="message ai">
+                            Hi! Ask me about focus, attention, or studying and I'll share neuroscience-backed tips.
+                        </div>
+                        <div class="message user">
+                            How can I improve my focus?
+                        </div>
+                        <div class="message ai">
+                            Try the Pomodoro Technique: 25-minute focused sessions with 5-minute breaks. This aligns with your brain's natural attention cycles. Also, eliminate distractions by putting your phone in another room and using fullscreen mode for your work.
+                        </div>
+                    </div>
+
+                    <div class="chat-input">
+                        <input type="text" placeholder="Ask about focus, memory, or study methods...">
+                        <button class="btn btn-primary">Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bottom-nav">
+                <div class="nav-item active" onclick="showScreen('home')">
+                    <div class="nav-icon"></div>
+                    <div class="nav-label">Home</div>
+                </div>
+                <div class="nav-item" onclick="showScreen('beats')">
+                    <div class="nav-icon"></div>
+                    <div class="nav-label">Beats</div>
+                </div>
+                <div class="nav-item" onclick="showScreen('timer')">
+                    <div class="nav-icon"></div>
+                    <div class="nav-label">Timer</div>
+                </div>
+                <div class="nav-item" onclick="showScreen('flashcards')">
+                    <div class="nav-icon"></div>
+                    <div class="nav-label">Cards</div>
+                </div>
+                <div class="nav-item" onclick="showScreen('notes')">
+                    <div class="nav-icon"></div>
+                    <div class="nav-label">Notes</div>
+                </div>
+                <div class="nav-item" onclick="showScreen('reminders')">
+                    <div class="nav-icon"></div>
+                    <div class="nav-label">Reminders</div>
+                </div>
+                <div class="nav-item" onclick="showScreen('chat')">
+                    <div class="nav-icon"></div>
+                    <div class="nav-label">Chat</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Function to get cute sea creature icon for navigation
+        function getNavIcon(type) {
+            const icons = {
+                'home': '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M 50 15 L 55 40 L 80 40 L 60 55 L 65 80 L 50 65 L 35 80 L 40 55 L 20 40 L 45 40 Z" fill="#FFD700"/><circle cx="42" cy="48" r="2.5" fill="#1a1a1a"/><circle cx="58" cy="48" r="2.5" fill="#1a1a1a"/><circle cx="42" cy="48" r="1" fill="#fff"/><circle cx="58" cy="48" r="1" fill="#fff"/><path d="M 50 55 Q 48 59, 50 63" stroke="#1a1a1a" stroke-width="2" fill="none" stroke-linecap="round"/><ellipse cx="38" cy="46" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><ellipse cx="62" cy="46" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><circle cx="30" cy="35" r="1.5" fill="#FFD700" opacity="0.7"/><circle cx="70" cy="35" r="1.5" fill="#FFD700" opacity="0.7"/><circle cx="50" cy="30" r="1.5" fill="#FFD700" opacity="0.7"/><circle cx="25" cy="60" r="1" fill="#FFD700" opacity="0.6"/><circle cx="75" cy="60" r="1" fill="#FFD700" opacity="0.6"/></svg>',
+                'beats': '<svg viewBox="0 0 95 115" xmlns="http://www.w3.org/2000/svg"><ellipse cx="47" cy="38" rx="35" ry="24" fill="#87CEEB"/><ellipse cx="47" cy="38" rx="28" ry="20" fill="#B0E0E6" opacity="0.85"/><circle cx="42" cy="35" r="2.5" fill="#1a1a1a"/><circle cx="52" cy="35" r="2.5" fill="#1a1a1a"/><circle cx="42" cy="35" r="1" fill="#fff"/><circle cx="52" cy="35" r="1" fill="#fff"/><path d="M 47 42 Q 45 46, 47 50" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="38" cy="33" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><ellipse cx="56" cy="33" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><path d="M 24 60 Q 29 70, 24 80 Q 29 90, 24 100 Q 29 110, 24 110" stroke="#87CEEB" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M 47 60 Q 52 70, 47 80 Q 52 90, 47 100 Q 52 110, 47 110" stroke="#87CEEB" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M 70 60 Q 65 70, 70 80 Q 65 90, 70 100 Q 65 110, 70 110" stroke="#87CEEB" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M 35 60 Q 40 70, 35 80 Q 40 90, 35 100 Q 40 110, 35 110" stroke="#9370DB" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M 59 60 Q 64 70, 59 80 Q 64 90, 59 100 Q 64 110, 59 110" stroke="#9370DB" stroke-width="3.5" fill="none" stroke-linecap="round"/></svg>',
+                'timer': '<svg viewBox="0 0 100 115" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="48" rx="30" ry="24" fill="#9370DB"/><ellipse cx="50" cy="48" rx="25" ry="20" fill="#BA55D3" opacity="0.85"/><circle cx="45" cy="42" r="3" fill="#1a1a1a"/><circle cx="55" cy="42" r="3" fill="#1a1a1a"/><circle cx="45" cy="42" r="1" fill="#fff"/><circle cx="55" cy="42" r="1" fill="#fff"/><path d="M 50 50 Q 48 54, 50 58" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="40" cy="40" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><ellipse cx="60" cy="40" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><path d="M 28 58 Q 23 63, 18 68 Q 23 73, 28 78 Q 23 83, 18 88 Q 23 93, 28 98 Q 23 103, 18 108" stroke="#9370DB" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M 72 58 Q 77 63, 82 68 Q 77 73, 72 78 Q 77 83, 82 88 Q 77 93, 72 98 Q 77 103, 82 108" stroke="#9370DB" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M 23 68 Q 18 73, 13 78 Q 18 83, 23 88 Q 18 93, 13 98" stroke="#9370DB" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M 77 68 Q 82 73, 87 78 Q 82 83, 77 88 Q 82 93, 87 98" stroke="#9370DB" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M 33 78 Q 28 83, 23 88 Q 28 93, 33 98 Q 28 103, 23 108" stroke="#9370DB" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M 67 78 Q 72 83, 77 88 Q 72 93, 67 98 Q 72 103, 77 108" stroke="#9370DB" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M 38 88 Q 33 93, 28 98 Q 33 103, 38 108" stroke="#9370DB" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M 62 88 Q 67 93, 72 98 Q 67 103, 62 108" stroke="#9370DB" stroke-width="4.5" fill="none" stroke-linecap="round"/></svg>',
+                'flashcards': '<svg viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="45" rx="34" ry="24" fill="#FF6347"/><ellipse cx="50" cy="45" rx="27" ry="20" fill="#FF7F50" opacity="0.8"/><circle cx="42" cy="41" r="3.5" fill="#1a1a1a"/><circle cx="58" cy="41" r="3.5" fill="#1a1a1a"/><circle cx="42" cy="41" r="1" fill="#fff"/><circle cx="58" cy="41" r="1" fill="#fff"/><path d="M 50 48 Q 48 52, 50 56" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="38" cy="39" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><ellipse cx="62" cy="39" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><path d="M 16 34 L 6 24 L 11 29 Z" fill="#FF6347"/><path d="M 84 34 L 94 24 L 89 29 Z" fill="#FF6347"/><path d="M 16 56 L 6 66 L 11 61 Z" fill="#FF6347"/><path d="M 84 56 L 94 66 L 89 61 Z" fill="#FF6347"/><path d="M 11 45 L 1 45" stroke="#FF6347" stroke-width="6" stroke-linecap="round"/><path d="M 89 45 L 99 45" stroke="#FF6347" stroke-width="6" stroke-linecap="round"/><path d="M 11 45 L 1 38" stroke="#FF6347" stroke-width="4" stroke-linecap="round"/><path d="M 11 45 L 1 52" stroke="#FF6347" stroke-width="4" stroke-linecap="round"/><path d="M 89 45 L 99 38" stroke="#FF6347" stroke-width="4" stroke-linecap="round"/><path d="M 89 45 L 99 52" stroke="#FF6347" stroke-width="4" stroke-linecap="round"/></svg>',
+                'notes': '<svg viewBox="0 0 75 115" xmlns="http://www.w3.org/2000/svg"><path d="M 37 15 Q 42 25, 37 35 Q 32 45, 37 55 Q 42 65, 37 75 Q 32 85, 37 95 Q 42 105, 37 110" stroke="#FFD700" stroke-width="6" fill="none" stroke-linecap="round"/><circle cx="37" cy="20" r="6" fill="#FFD700"/><circle cx="35" cy="17" r="2.5" fill="#1a1a1a"/><circle cx="35" cy="17" r="1" fill="#fff"/><path d="M 37 28 L 42 33" stroke="#FFD700" stroke-width="4" stroke-linecap="round"/><path d="M 37 28 L 32 33" stroke="#FFD700" stroke-width="4" stroke-linecap="round"/><path d="M 37 48 Q 42 53, 37 58" stroke="#FFD700" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M 37 68 Q 32 73, 37 78" stroke="#FFD700" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M 37 88 Q 42 93, 37 98" stroke="#FFD700" stroke-width="4" fill="none" stroke-linecap="round"/><ellipse cx="33" cy="22" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/></svg>',
+                'reminders': '<svg viewBox="0 0 100 95" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="50" rx="40" ry="30" fill="#FFB6C1"/><ellipse cx="50" cy="50" rx="32" ry="24" fill="#FFC0CB" opacity="0.85"/><circle cx="42" cy="45" r="3" fill="#1a1a1a"/><circle cx="58" cy="45" r="3" fill="#1a1a1a"/><circle cx="42" cy="45" r="1" fill="#fff"/><circle cx="58" cy="45" r="1" fill="#fff"/><path d="M 50 53 Q 48 57, 50 61" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="38" cy="42" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><ellipse cx="62" cy="42" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><path d="M 50 25 L 50 15 L 55 20 Z" fill="#FFD700"/><circle cx="50" cy="20" r="3" fill="#FFD700"/><circle cx="50" cy="20" r="1.5" fill="#FFA500"/><path d="M 30 35 L 25 30 L 30 25" fill="#FFB6C1"/><path d="M 70 35 L 75 30 L 70 25" fill="#FFB6C1"/><path d="M 30 65 L 25 70 L 30 75" fill="#FFB6C1"/><path d="M 70 65 L 75 70 L 70 75" fill="#FFB6C1"/></svg>',
+                'chat': '<svg viewBox="0 0 90 80" xmlns="http://www.w3.org/2000/svg"><path d="M 45 70 Q 35 60, 25 65 Q 35 70, 45 75 Q 55 70, 65 65 Q 55 60, 45 70" fill="#FFB6C1" stroke="#FFC0CB" stroke-width="1.5"/><ellipse cx="45" cy="50" rx="30" ry="20" fill="#FFB6C1"/><ellipse cx="45" cy="50" rx="25" ry="17" fill="#FFC0CB" opacity="0.85"/><circle cx="38" cy="47" r="2.5" fill="#1a1a1a"/><circle cx="52" cy="47" r="2.5" fill="#1a1a1a"/><circle cx="38" cy="47" r="1" fill="#fff"/><circle cx="52" cy="47" r="1" fill="#fff"/><path d="M 45 52 Q 43 56, 45 60" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round"/><ellipse cx="35" cy="45" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/><ellipse cx="55" cy="45" rx="2.5" ry="2" fill="#FFB6C1" opacity="0.9"/></svg>'
+            };
+            return icons[type] || icons['home'];
+        }
+
+        // Set navigation icons on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const navItems = {
+                'home': document.querySelector('.nav-item[onclick*="home"] .nav-icon'),
+                'beats': document.querySelector('.nav-item[onclick*="beats"] .nav-icon'),
+                'timer': document.querySelector('.nav-item[onclick*="timer"] .nav-icon'),
+                'flashcards': document.querySelector('.nav-item[onclick*="flashcards"] .nav-icon'),
+                'notes': document.querySelector('.nav-item[onclick*="notes"] .nav-icon'),
+                'reminders': document.querySelector('.nav-item[onclick*="reminders"] .nav-icon'),
+                'chat': document.querySelector('.nav-item[onclick*="chat"] .nav-icon')
+            };
+            
+            Object.keys(navItems).forEach(key => {
+                if (navItems[key]) {
+                    navItems[key].innerHTML = getNavIcon(key);
+                }
+            });
+        });
+
+        function showScreen(screenId) {
+            // Hide all screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            // Remove active from all nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Show selected screen
+            document.getElementById(screenId).classList.add('active');
+            
+            // Add active to clicked nav item
+            event.currentTarget.classList.add('active');
+        }
+
+        // Simulate study mode toggle
+        document.addEventListener('click', function(e) {
+            if (e.target.textContent === 'Study') {
+                document.getElementById('study-mode').style.display = 'block';
+            }
+            if (e.target.textContent === '← Back') {
+                document.getElementById('study-mode').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
+
+

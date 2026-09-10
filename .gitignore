@@ -1,0 +1,32 @@
+# Secrets & env
+.env
+.env.*
+!.env.example
+config.local.js
+*.pem
+*.key
+credentials.json
+service_role*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dependencies / build
+node_modules/
+.expo/
+dist/
+build/
+.cache/
+npm-debug.log*
+yarn-error.log*
+
+# Temp / local only
+_draw_mem_tmp.js
+*.local.html
+.vercel
+.netlify

@@ -29,14 +29,15 @@
   status = 200
 
 [[redirects]]
-  from = "/"
-  to = "/desktop-preview.html"
+  from = "/app"
+  to = "/"
   status = 200
 
+# Old preview filename → clean homepage
 [[redirects]]
-  from = "/app"
-  to = "/desktop-preview.html"
-  status = 200
+  from = "/desktop-preview.html"
+  to = "/"
+  status = 301
 
 [[redirects]]
   from = "/*"

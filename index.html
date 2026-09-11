@@ -9289,6 +9289,26 @@
         .auth-form input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
         .auth-form .btn { width: 100%; margin-top: 8px; padding: 12px; }
         .auth-error { color: #dc2626; font-size: 13px; margin-top: 8px; }
+        .auth-extra {
+            margin-top: 14px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .auth-extra button {
+            background: none;
+            border: none;
+            padding: 0;
+            color: #111111;
+            font-weight: 650;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            font-family: inherit;
+        }
+        .auth-extra button:hover { opacity: 0.75; }
+        .user-menu-item.danger { color: #b91c1c; }
         .auth-user { display: flex; align-items: center; gap: 8px; margin-right: 8px; }
         .auth-user span { font-size: 14px; color: var(--muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
         .auth-header { display: flex; align-items: center; margin-right: 8px; }
@@ -9393,6 +9413,7 @@
                         <button type="button" class="user-menu-item" onclick="closeUserMenu(); openFeedbackModal('contact')">Contact</button>
                         <button type="button" class="user-menu-item" onclick="openUserBackgroundSettings(event)">Background</button>
                         <button type="button" class="user-menu-item" id="userMenuLogoutItem" style="display:none;" onclick="closeUserMenu(); authSignOut()">Log out</button>
+                        <button type="button" class="user-menu-item danger" id="userMenuDeleteAccountItem" style="display:none;" onclick="closeUserMenu(); deleteOwnAccount()">Delete account</button>
                     </div>
                     <div class="color-theme-dropdown" style="position:absolute; right:0; top:100%;">
                         <div class="color-theme-menu" id="colorThemeMenu" style="display: none;">
@@ -9436,6 +9457,9 @@
                     <p id="authSupabaseStatus" class="auth-status" style="display:none;"></p>
                     <button type="submit" class="btn btn-primary" id="authSubmitBtn">Log in</button>
                 </form>
+                <div class="auth-extra" id="authResendWrap">
+                    <button type="button" id="authResendBtn" onclick="resendConfirmationEmail()">Resend confirmation email</button>
+                </div>
             </div>
         </div>
 
@@ -11498,6 +11522,7 @@
                 const loginItem = document.getElementById('userMenuLoginItem');
                 const signupItem = document.getElementById('userMenuSignupItem');
                 const logoutItem = document.getElementById('userMenuLogoutItem');
+                const deleteItem = document.getElementById('userMenuDeleteAccountItem');
                 const nameEl = document.getElementById('userMenuName');
                 const logoText = document.getElementById('headerLogoText');
                 if (loggedIn && email) {
@@ -11505,6 +11530,7 @@
                     if (loginItem) loginItem.style.display = 'none';
                     if (signupItem) signupItem.style.display = 'none';
                     if (logoutItem) logoutItem.style.display = '';
+                    if (deleteItem) deleteItem.style.display = '';
                     if (nameEl) nameEl.textContent = email;
                     if (logoText) logoText.textContent = 'Neurosync';
                 } else {
@@ -11512,6 +11538,7 @@
                     if (loginItem) loginItem.style.display = '';
                     if (signupItem) signupItem.style.display = '';
                     if (logoutItem) logoutItem.style.display = 'none';
+                    if (deleteItem) deleteItem.style.display = 'none';
                     if (nameEl) nameEl.textContent = 'Guest';
                     if (logoText) logoText.textContent = 'Neurosync';
                 }
@@ -11749,7 +11776,144 @@
             if (usernameGroup) usernameGroup.style.display = isLogin ? 'none' : 'block';
             var usernameEl = document.getElementById('authUsername');
             if (usernameEl) usernameEl.required = !isLogin;
+            var resendWrap = document.getElementById('authResendWrap');
+            if (resendWrap) resendWrap.style.display = isLogin ? '' : 'none';
             mountAuthCaptcha();
+        }
+
+        function getAuthEmailRedirectTo() {
+            try {
+                if (window.location && window.location.origin && window.location.protocol.indexOf('http') === 0) {
+                    return window.location.origin + '/';
+                }
+            } catch (e) {}
+            return 'https://neurosyncstudy.com/';
+        }
+
+        async function resendConfirmationEmail() {
+            await ensureSupabaseClient();
+            var errEl = document.getElementById('authError');
+            var emailEl = document.getElementById('authEmail');
+            var email = emailEl ? emailEl.value.trim() : '';
+            if (errEl) errEl.style.display = 'none';
+            if (!email) {
+                if (errEl) {
+                    errEl.textContent = 'Enter your email above, then tap Resend confirmation email.';
+                    errEl.style.display = 'block';
+                }
+                return;
+            }
+            if (!supabase) {
+                if (errEl) {
+                    errEl.textContent = 'Account service is not connected yet.';
+                    errEl.style.display = 'block';
+                }
+                return;
+            }
+            if (!nsRateLimit('auth-resend:' + email.toLowerCase(), 3, 120000)) {
+                if (errEl) {
+                    errEl.textContent = 'Please wait a couple of minutes before requesting another email.';
+                    errEl.style.display = 'block';
+                }
+                return;
+            }
+            var btn = document.getElementById('authResendBtn');
+            if (btn) btn.disabled = true;
+            try {
+                var { error } = await supabase.auth.resend({
+                    type: 'signup',
+                    email: email,
+                    options: { emailRedirectTo: getAuthEmailRedirectTo() }
+                });
+                if (error) throw error;
+                if (typeof showToast === 'function') {
+                    showToast('Confirmation email sent. Check inbox and spam.', 'success', 5000);
+                }
+                if (errEl) {
+                    errEl.style.display = 'none';
+                }
+            } catch (e) {
+                var msg = (e && e.message) ? e.message : 'Could not resend confirmation email.';
+                if (/already.*(confirmed|registered)|email.*confirmed/i.test(msg)) {
+                    msg = 'That email is already confirmed. Try logging in, or reset your password if needed.';
+                }
+                if (errEl) {
+                    errEl.textContent = msg;
+                    errEl.style.display = 'block';
+                } else if (typeof showToast === 'function') {
+                    showToast(msg, 'error', 5000);
+                }
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        function clearAccountLocalData(ownerId) {
+            var owner = ownerId ? String(ownerId) : '';
+            var prefixes = [
+                'neurosync_flashcard_sets_user_',
+                'neurosync_flashcard_folders_user_',
+                'neurosync_fc_deleted_',
+                'neurosync_fc_folders_deleted_',
+                'neurosync_fc_folders_init_',
+                'neurosync_fc_migrated_',
+                'neurosync_cookies_',
+                'neurosync_points_',
+                'neurosync_ocean_',
+                'neurosync_todo_',
+                'neurosync_forgetting_'
+            ];
+            try {
+                var toRemove = [];
+                for (var i = 0; i < localStorage.length; i++) {
+                    var k = localStorage.key(i);
+                    if (!k) continue;
+                    if (owner && prefixes.some(function(p) { return k.indexOf(p + owner) === 0 || k === p + owner; })) {
+                        toRemove.push(k);
+                    }
+                }
+                toRemove.forEach(function(k) { localStorage.removeItem(k); });
+            } catch (e) {}
+            try { localStorage.removeItem('neurosync_demo_user'); } catch (e2) {}
+            try { localStorage.removeItem('neurosync_last_user_id'); } catch (e3) {}
+        }
+
+        async function deleteOwnAccount() {
+            await ensureSupabaseClient();
+            if (!supabase) {
+                if (typeof showToast === 'function') showToast('Account service is not connected yet.', 'error');
+                return;
+            }
+            var { data: sessionData } = await supabase.auth.getSession();
+            var user = sessionData && sessionData.session && sessionData.session.user;
+            if (!user) {
+                if (typeof showToast === 'function') showToast('Log in first to delete your account.', 'warning');
+                openAuthModal('login');
+                return;
+            }
+            if (!confirm('Delete your NeuroSync account permanently? This cannot be undone.')) return;
+            var typed = prompt('Type DELETE to confirm account deletion:');
+            if (String(typed || '').trim().toUpperCase() !== 'DELETE') {
+                if (typeof showToast === 'function') showToast('Account not deleted.', 'info');
+                return;
+            }
+            try {
+                var { error } = await supabase.rpc('delete_own_account');
+                if (error) throw error;
+                clearAccountLocalData(user.id);
+                try { await supabase.auth.signOut(); } catch (eSign) {}
+                updateAuthUI(null, false);
+                if (typeof showScreen === 'function') showScreen('home');
+                if (typeof showToast === 'function') {
+                    showToast('Your account has been deleted.', 'success', 5000);
+                }
+            } catch (e) {
+                var msg = (e && e.message) ? e.message : 'Could not delete account.';
+                if (/function .*delete_own_account.*does not exist|42883|PGRST202/i.test(msg)) {
+                    msg = 'Account deletion is not set up in Supabase yet. Run supabase-delete-account.sql in the SQL Editor, then try again.';
+                }
+                if (typeof showToast === 'function') showToast(msg, 'error', 7000);
+            }
         }
 
         function normalizeUsername(raw) {
@@ -11843,7 +12007,8 @@
                             password,
                             options: {
                                 data: metaData,
-                                captchaToken: __nsCaptchaToken || undefined
+                                captchaToken: __nsCaptchaToken || undefined,
+                                emailRedirectTo: getAuthEmailRedirectTo()
                             }
                         });
                         resetAuthCaptcha();
@@ -11942,6 +12107,9 @@
                 }
             } catch (err) {
                 errEl.textContent = err.message || 'Something went wrong.';
+                if (/email not confirmed|confirm your email|Email not confirmed/i.test(String(err.message || ''))) {
+                    errEl.textContent = 'Confirm your email first. Enter your email above, then tap Resend confirmation email.';
+                }
                 if (/captcha_token|captcha protection/i.test(String(err.message || ''))) {
                     if (!captchaEnabled()) {
                         errEl.textContent = 'Supabase captcha is ON, but no site key is configured yet. Set CAPTCHA_SITE_KEY in Netlify env (or config.local.js), or turn captcha OFF in Supabase Auth → Bot and Abuse Protection.';
@@ -16796,18 +16964,23 @@
         // Paste your public website inbox in email (e.g. hello@yourdomain.com) — never put secrets here.
         var NEUROSYNC_FEEDBACK = {
             formUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSfUmSzKGb-Su0yW4oZM8lpnFindUTyPEgvN9b4eE-PDGYdCxA/viewform',
+            // Contact uses this form (viewform — not /edit)
+            contactFormUrl: 'https://docs.google.com/forms/d/1ldYAPp1hfKCHnpHPvwvTAeQZJmKD06VW7bRt1Mo82ys/viewform',
             email: '' // optional: FormSubmit destination, e.g. 'hello@neurosync.app'
         };
 
         function getFeedbackConfig() {
             var cfg = {
                 formUrl: (NEUROSYNC_FEEDBACK && NEUROSYNC_FEEDBACK.formUrl) ? String(NEUROSYNC_FEEDBACK.formUrl).trim() : '',
+                contactFormUrl: (NEUROSYNC_FEEDBACK && NEUROSYNC_FEEDBACK.contactFormUrl) ? String(NEUROSYNC_FEEDBACK.contactFormUrl).trim() : '',
                 email: (NEUROSYNC_FEEDBACK && NEUROSYNC_FEEDBACK.email) ? String(NEUROSYNC_FEEDBACK.email).trim() : ''
             };
             try {
                 var storedUrl = localStorage.getItem('neurosync_feedback_form_url');
+                var storedContact = localStorage.getItem('neurosync_contact_form_url');
                 var storedEmail = localStorage.getItem('neurosync_feedback_email');
                 if (storedUrl) cfg.formUrl = storedUrl.trim();
+                if (storedContact) cfg.contactFormUrl = storedContact.trim();
                 if (storedEmail) cfg.email = storedEmail.trim();
             } catch (e) {}
             if (window.__NS_CONTACT_EMAIL) cfg.email = String(window.__NS_CONTACT_EMAIL).trim() || cfg.email;
@@ -16817,6 +16990,8 @@
         function toFeedbackEmbedUrl(url) {
             if (!url) return '';
             var u = url.trim();
+            // Editor links won't embed — switch to the public view form
+            u = u.replace(/\/edit(\?.*)?$/i, '/viewform$1');
             if (/docs\.google\.com\/forms|forms\.gle/i.test(u)) {
                 if (u.indexOf('embedded=true') === -1) {
                     u += (u.indexOf('?') >= 0 ? '&' : '?') + 'embedded=true';
@@ -16855,9 +17030,12 @@
             if (title) title.textContent = isContact ? 'Contact' : 'Send feedback';
 
             // Prefer FormSubmit/native when an inbox email is set; otherwise embed the Google Form.
-            var useEmbed = !!(cfg.formUrl && !cfg.email);
+            var chosenUrl = isContact
+                ? (cfg.contactFormUrl || cfg.formUrl)
+                : (cfg.formUrl || cfg.contactFormUrl);
+            var useEmbed = !!(chosenUrl && !cfg.email);
             if (useEmbed) {
-                var embedUrl = toFeedbackEmbedUrl(cfg.formUrl);
+                var embedUrl = toFeedbackEmbedUrl(chosenUrl);
                 if (embedPanel) embedPanel.style.display = 'block';
                 if (nativeForm) nativeForm.style.display = 'none';
                 if (lead) {
@@ -16867,7 +17045,7 @@
                 }
                 if (frame) frame.src = embedUrl;
                 if (ext) {
-                    ext.href = cfg.formUrl;
+                    ext.href = chosenUrl.replace(/\/edit(\?.*)?$/i, '/viewform$1');
                     ext.style.display = '';
                 }
             } else {
@@ -21498,11 +21676,62 @@ Keep up the great work!
             }
         }
 
+        function getFlashcardDeletedFoldersKey() {
+            return 'neurosync_fc_folders_deleted_' + getFlashcardOwnerId();
+        }
+
+        function getFlashcardFoldersInitKey() {
+            return 'neurosync_fc_folders_init_' + getFlashcardOwnerId();
+        }
+
+        function normalizeFolderName(name) {
+            return String(name == null ? '' : name).trim();
+        }
+
+        function getDeletedFlashcardFolderNames() {
+            return readDeletedIdList(getFlashcardDeletedFoldersKey())
+                .map(normalizeFolderName)
+                .filter(Boolean);
+        }
+
+        function isFlashcardFolderDeleted(folderName) {
+            var target = normalizeFolderName(folderName).toLowerCase();
+            if (!target || target === 'all sets') return false;
+            return getDeletedFlashcardFolderNames().some(function(n) {
+                return n.toLowerCase() === target;
+            });
+        }
+
+        function markFlashcardFolderDeleted(folderName) {
+            var name = normalizeFolderName(folderName);
+            if (!name || name === 'All sets') return;
+            var list = getDeletedFlashcardFolderNames();
+            var lower = name.toLowerCase();
+            if (!list.some(function(n) { return n.toLowerCase() === lower; })) {
+                list.push(name);
+                writeDeletedIdList(getFlashcardDeletedFoldersKey(), list);
+            }
+            try { localStorage.setItem(getFlashcardFoldersInitKey(), '1'); } catch (e) {}
+        }
+
+        function clearFlashcardFolderDeleted(folderName) {
+            var name = normalizeFolderName(folderName);
+            if (!name) return;
+            var lower = name.toLowerCase();
+            var next = getDeletedFlashcardFolderNames().filter(function(n) {
+                return n.toLowerCase() !== lower;
+            });
+            writeDeletedIdList(getFlashcardDeletedFoldersKey(), next);
+        }
+
         var DEFAULT_FLASHCARD_FOLDERS = ['Biology', 'Chemistry', 'Physics', 'Math'];
         var flashcardFolders = DEFAULT_FLASHCARD_FOLDERS.slice();
 
         function loadFlashcardFolders() {
             try {
+                var deleted = getDeletedFlashcardFolderNames();
+                var deletedLower = {};
+                deleted.forEach(function(n) { deletedLower[n.toLowerCase()] = true; });
                 var key = getFlashcardFoldersStorageKey();
                 var raw = localStorage.getItem(key);
                 if (raw == null && getFlashcardOwnerId() === 'guest') {
@@ -21512,17 +21741,29 @@ Keep up the great work!
                     var stored = JSON.parse(raw);
                     if (Array.isArray(stored)) {
                         flashcardFolders = stored
-                            .map(function(f) { return String(f || '').trim(); })
-                            .filter(function(f) { return f && f !== 'All sets'; });
+                            .map(normalizeFolderName)
+                            .filter(function(f) {
+                                return f && f !== 'All sets' && !deletedLower[f.toLowerCase()];
+                            });
                     } else {
-                        flashcardFolders = DEFAULT_FLASHCARD_FOLDERS.slice();
+                        flashcardFolders = [];
                     }
                 } else {
-                    flashcardFolders = DEFAULT_FLASHCARD_FOLDERS.slice();
+                    // First visit only. Never re-seed defaults after the user has deleted folders.
+                    var alreadyInit = false;
+                    try { alreadyInit = localStorage.getItem(getFlashcardFoldersInitKey()) === '1'; } catch (eInit) {}
+                    if (alreadyInit || deleted.length) {
+                        flashcardFolders = [];
+                    } else {
+                        flashcardFolders = DEFAULT_FLASHCARD_FOLDERS.filter(function(f) {
+                            return !deletedLower[String(f).toLowerCase()];
+                        });
+                    }
                     saveFlashcardFolders();
                 }
+                try { localStorage.setItem(getFlashcardFoldersInitKey(), '1'); } catch (e2) {}
             } catch (e) {
-                flashcardFolders = DEFAULT_FLASHCARD_FOLDERS.slice();
+                flashcardFolders = [];
             }
         }
 
@@ -21530,6 +21771,7 @@ Keep up the great work!
             try {
                 var key = getFlashcardFoldersStorageKey();
                 localStorage.setItem(key, JSON.stringify(flashcardFolders || []));
+                try { localStorage.setItem(getFlashcardFoldersInitKey(), '1'); } catch (eInit) {}
                 if (getFlashcardOwnerId() === 'guest') {
                     localStorage.setItem(FLASHCARD_FOLDERS_KEY, JSON.stringify(flashcardFolders || []));
                 }
@@ -22615,6 +22857,7 @@ Keep up the great work!
             }
 
             flashcardFolders = (flashcardFolders || []).filter(function(f) { return f !== folderName; });
+            markFlashcardFolderDeleted(folderName);
             saveFlashcardFolders();
             renderFlashcardFolders('All sets');
             updateSetsGrid();
@@ -22624,6 +22867,7 @@ Keep up the great work!
         function hideFolderFromSidebar(folderName) {
             // Legacy helper: folders now persist via flashcardFolders
             flashcardFolders = (flashcardFolders || []).filter(function(f) { return f !== folderName; });
+            markFlashcardFolderDeleted(folderName);
             saveFlashcardFolders();
             renderFlashcardFolders();
         }
@@ -22699,6 +22943,7 @@ Keep up the great work!
                 return existing || folderName;
             }
             flashcardFolders = (flashcardFolders || []).concat([folderName]);
+            clearFlashcardFolderDeleted(folderName);
             saveFlashcardFolders();
             renderFlashcardFolders(folderName);
             syncFlashcardFolderSelects();
@@ -22712,6 +22957,7 @@ Keep up the great work!
 
         function showFolderInSidebar(folderName) {
             if (!folderName || folderName === 'All sets') return;
+            if (isFlashcardFolderDeleted(folderName)) return;
             if ((flashcardFolders || []).indexOf(folderName) === -1) {
                 flashcardFolders.push(folderName);
                 saveFlashcardFolders();
@@ -22725,6 +22971,9 @@ Keep up the great work!
         }
 
         function restoreAllFolders() {
+            DEFAULT_FLASHCARD_FOLDERS.forEach(function(name) {
+                clearFlashcardFolderDeleted(name);
+            });
             flashcardFolders = DEFAULT_FLASHCARD_FOLDERS.slice();
             saveFlashcardFolders();
             renderFlashcardFolders();

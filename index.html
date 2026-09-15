@@ -11,12 +11,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="canonical" href="/">
-    <link rel="icon" href="assets/neurosync-favicon.png?v=9" type="image/png" sizes="any">
-    <link rel="apple-touch-icon" href="assets/neurosync-favicon.png?v=9">
+    <link rel="icon" href="assets/neurosync-favicon.png?v=17" type="image/png" sizes="any">
+    <link rel="apple-touch-icon" href="assets/neurosync-favicon.png?v=17">
     <meta property="og:type" content="website">
     <meta property="og:title" content="Neurosync">
     <meta property="og:description" content="Flashcards, focus timer, progress tools, and study resources for high-school students.">
-    <meta property="og:image" content="assets/neurosync-favicon.png?v=9">
+    <meta property="og:image" content="assets/neurosync-logo-round.png?v=11">
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="Neurosync">
     <meta name="twitter:description" content="Flashcards, focus timer, progress tools, and study resources for high-school students.">
@@ -152,12 +152,23 @@
             flex-shrink: 0;
         }
 
+        .logo-mark {
+            height: 44px;
+            width: 44px;
+            display: block;
+            border-radius: 50%;
+            object-fit: cover;
+            box-shadow: 0 2px 10px rgba(42, 26, 18, 0.12);
+            flex-shrink: 0;
+            border: 1.5px solid color-mix(in srgb, var(--ink) 12%, white);
+        }
+
         .logo-icon {
             width: 36px;
             height: 36px;
             background: transparent !important;
             border-radius: 50%;
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
             color: #fffefb !important;
@@ -184,6 +195,7 @@
             letter-spacing: -0.02em;
             line-height: 1.1;
             white-space: nowrap;
+            display: none;
         }
 
         .logo-brand-row {
@@ -584,21 +596,23 @@
 
         .home-front-brand .home-brand-o {
             display: inline-block;
-            width: 0.72em;
-            height: 0.72em;
-            margin: 0 0.01em 0 0;
+            width: 0.68em;
+            height: 0.68em;
+            margin: 0 0.04em 0 0.02em;
             vertical-align: -0.02em;
             color: #1a1a1a;
             line-height: 0;
             position: relative;
-            top: 0.04em;
+            top: 0.06em;
         }
 
+        .home-front-brand .home-brand-o img,
         .home-front-brand .home-brand-o svg {
             width: 100%;
             height: 100%;
             display: block;
             overflow: visible;
+            background: transparent !important;
         }
 
         .home-front-brand .home-brand-sync {
@@ -1091,6 +1105,11 @@
 
             .header-controls {
                 margin-left: 0;
+            }
+
+            .logo-mark {
+                height: 40px;
+                width: 40px;
             }
 
             .logo-text {
@@ -4316,6 +4335,11 @@
         [data-theme="dark"] .home-front-brand .home-brand-neuro,
         [data-theme="dark"] .home-front-brand .home-brand-o {
             color: #f2f0eb;
+        }
+
+        [data-theme="dark"] .home-front-brand .home-brand-sync {
+            color: var(--sync);
+            -webkit-text-fill-color: var(--sync);
         }
 
         [data-theme="dark"] .home-front-lead {
@@ -9428,8 +9452,9 @@
     <div class="container">
         <div class="header">
             <div class="logo" role="link" tabindex="0" onclick="showScreen('home')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showScreen('home');}" title="Go to Home" style="cursor:pointer;">
+                <img class="logo-mark" src="assets/neurosync-logo-round.png?v=11" alt="NeuroSync" width="44" height="44">
                 <div class="logo-icon" aria-hidden="true">
-                    <img src="assets/neurosync-favicon.png?v=9" alt="" width="36" height="36" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;">
+                    <img src="assets/neurosync-favicon.png?v=17" alt="" width="36" height="36" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;">
                 </div>
                 <div>
                     <div class="logo-brand-row">
@@ -9552,7 +9577,7 @@
             <div class="home-layout">
                 <section class="home-front" aria-label="Neurosync welcome">
                     <div class="home-front-center">
-                        <h1 class="home-front-brand" aria-label="NeuroSync"><span class="home-brand-neuro">Neur<span class="home-brand-o" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><circle cx="50" cy="50" r="36" fill="none" stroke="currentColor" stroke-width="12"/><circle cx="36" cy="42" r="5.2" fill="currentColor"/><circle cx="64" cy="42" r="5.2" fill="currentColor"/><path d="M33 58 Q50 76 67 58" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/></svg></span></span><span class="home-brand-sync">Sync</span></h1>
+                        <h1 class="home-front-brand" aria-label="NeuroSync"><span class="home-brand-neuro">Neur<span class="home-brand-o" aria-hidden="true"><img src="assets/neurosync-smiley.png?v=17" alt="" width="96" height="96" style="background:transparent;"></span></span><span class="home-brand-sync">Sync</span></h1>
                         <p class="home-front-lead">Connecting highschool students to online resources and study methods based on their learning style.</p>
                         <div class="home-front-cta">
                             <button type="button" class="btn" onclick="goToHomeFeatures()">Get started</button>

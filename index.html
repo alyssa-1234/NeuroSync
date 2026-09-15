@@ -26,6 +26,12 @@
     <script>
         if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
         window.scrollTo(0, 0);
+        // Avoid a brief "Log in / Guest" flash while Supabase restores the session
+        try {
+            if (localStorage.getItem('neurosync_last_user_id') || localStorage.getItem('neurosync_demo_user')) {
+                document.documentElement.classList.add('auth-restoring');
+            }
+        } catch (e) {}
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4016,9 +4022,58 @@
             font-size: 12px;
             font-weight: 700;
             color: var(--muted);
-            padding: 8px 10px 10px;
+            padding: 8px 10px 4px;
+            word-break: break-word;
+        }
+
+        .user-menu-username {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted);
+            padding: 0 10px 10px;
             border-bottom: 1px solid color-mix(in srgb, var(--soft) 70%, white);
             margin-bottom: 6px;
+            word-break: break-word;
+            display: none;
+        }
+
+        html.auth-restoring #authHeaderBtn {
+            display: none !important;
+        }
+        html.auth-restoring #userMenuLoginItem,
+        html.auth-restoring #userMenuSignupItem {
+            display: none !important;
+        }
+        html.auth-restoring #userMenuLogoutItem,
+        html.auth-restoring #userMenuDeleteAccountItem,
+        html.auth-restoring #userMenuAccountItem {
+            display: block !important;
+        }
+        html.auth-restoring body.guest-locked .nav-btn.nav-needs-login,
+        html.auth-restoring body.guest-locked .nav-dropdown-btn.nav-needs-login {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .account-settings-rows {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin: 8px 0 18px;
+        }
+        .account-settings-rows label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+        .account-settings-rows p {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text);
             word-break: break-word;
         }
 
@@ -4057,6 +4112,10 @@
         }
 
         [data-theme="dark"] .user-menu-name {
+            border-bottom-color: transparent;
+        }
+
+        [data-theme="dark"] .user-menu-username {
             border-bottom-color: var(--soft);
         }
 
@@ -9406,12 +9465,14 @@
                     </button>
                     <div class="user-menu-dropdown" id="userMenuDropdown">
                         <div class="user-menu-name" id="userMenuName">Guest</div>
+                        <div class="user-menu-username" id="userMenuUsername"></div>
                         <button type="button" class="user-menu-item" id="userMenuLoginItem" onclick="closeUserMenu(); openAuthModal('login')">Log in</button>
                         <button type="button" class="user-menu-item" id="userMenuSignupItem" onclick="closeUserMenu(); openAuthModal('signup')">Sign up</button>
                         <button type="button" class="user-menu-item" onclick="closeUserMenu(); openFriendsModal()">Friends</button>
                         <button type="button" class="user-menu-item" onclick="closeUserMenu(); openFeedbackModal('feedback')">Send feedback</button>
                         <button type="button" class="user-menu-item" onclick="closeUserMenu(); openFeedbackModal('contact')">Contact</button>
                         <button type="button" class="user-menu-item" onclick="openUserBackgroundSettings(event)">Background</button>
+                        <button type="button" class="user-menu-item" id="userMenuAccountItem" style="display:none;" onclick="closeUserMenu(); openAccountSettings()">Account</button>
                         <button type="button" class="user-menu-item" id="userMenuLogoutItem" style="display:none;" onclick="closeUserMenu(); authSignOut()">Log out</button>
                         <button type="button" class="user-menu-item danger" id="userMenuDeleteAccountItem" style="display:none;" onclick="closeUserMenu(); deleteOwnAccount()">Delete account</button>
                     </div>
@@ -9460,6 +9521,29 @@
                 <div class="auth-extra" id="authResendWrap">
                     <button type="button" id="authResendBtn" onclick="resendConfirmationEmail()">Resend confirmation email</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Account settings modal -->
+        <div id="accountSettingsOverlay" class="auth-modal-overlay" onclick="if(event.target===this) closeAccountSettings()">
+            <div class="auth-modal" role="dialog" aria-labelledby="accountSettingsTitle" aria-modal="true">
+                <h2 id="accountSettingsTitle">Account</h2>
+                <p style="color: var(--muted); font-size: 13px; margin: -4px 0 8px;">Your signup details for this Neurosync account.</p>
+                <div class="account-settings-rows">
+                    <div>
+                        <label>User id</label>
+                        <p id="accountSettingsUsername">—</p>
+                    </div>
+                    <div>
+                        <label>Display name</label>
+                        <p id="accountSettingsDisplayName">—</p>
+                    </div>
+                    <div>
+                        <label>Email</label>
+                        <p id="accountSettingsEmail">—</p>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="closeAccountSettings()" style="width:100%;">Close</button>
             </div>
         </div>
 
@@ -11309,10 +11393,262 @@
                 persistSession: true,
                 autoRefreshToken: true,
                 detectSessionInUrl: true,
+                flowType: 'pkce',
                 storage: (typeof window !== 'undefined' && window.localStorage) ? window.localStorage : undefined
             }
         };
         var supabaseAuthListenerBound = false;
+
+        function cleanAuthRedirectUrl() {
+            try {
+                if (!window.history || !window.history.replaceState) return;
+                var url = new URL(window.location.href);
+                var dirty = false;
+                ['code', 'token_hash', 'type', 'error', 'error_description', 'error_code'].forEach(function(k) {
+                    if (url.searchParams.has(k)) {
+                        url.searchParams.delete(k);
+                        dirty = true;
+                    }
+                });
+                if (url.hash && /(access_token|refresh_token|type=)/i.test(url.hash)) {
+                    url.hash = '';
+                    dirty = true;
+                }
+                if (dirty) {
+                    window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+                }
+            } catch (e) {}
+        }
+
+        async function finalizeAuthSession(user, toastMsg) {
+            if (!user) return;
+            try { localStorage.setItem('neurosync_last_user_id', user.id); } catch (eId) {}
+            var displayText = user.user_metadata?.display_name
+                || (user.user_metadata?.username ? '@' + user.user_metadata.username : null)
+                || user.email;
+            cacheAccountSnapshot(user, displayText);
+            updateAuthUI(displayText, true);
+            try { await ensureUserProfile(user); } catch (profileErr) {
+                console.warn('ensureUserProfile after auth:', profileErr);
+            }
+            // Refresh cached username from profile if metadata was incomplete
+            try {
+                var uname = normalizeUsername(user.user_metadata?.username || '');
+                if (!uname && supabase) {
+                    var { data: prof } = await supabase.from('profiles').select('username, display_name').eq('id', user.id).maybeSingle();
+                    if (prof) {
+                        if (prof.username) localStorage.setItem('neurosync_last_username', normalizeUsername(prof.username));
+                        if (prof.display_name) localStorage.setItem('neurosync_last_display_name', String(prof.display_name));
+                        setUserMenuUsername(prof.username || '');
+                    }
+                } else {
+                    setUserMenuUsername(uname);
+                }
+            } catch (eCache) {}
+            if (toastMsg && typeof showToast === 'function') showToast(toastMsg, 'success', 5000);
+        }
+
+        function hasAuthSessionHint() {
+            try {
+                return !!(localStorage.getItem('neurosync_last_user_id') || localStorage.getItem('neurosync_demo_user'));
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function cacheAccountSnapshot(user, displayText) {
+            if (!user) return;
+            try {
+                if (user.id) localStorage.setItem('neurosync_last_user_id', user.id);
+                var username = normalizeUsername((user.user_metadata && user.user_metadata.username) || '');
+                if (username) localStorage.setItem('neurosync_last_username', username);
+                var dn = (user.user_metadata && user.user_metadata.display_name) || '';
+                if (dn) localStorage.setItem('neurosync_last_display_name', String(dn));
+                if (user.email) localStorage.setItem('neurosync_last_email', String(user.email));
+                if (displayText) localStorage.setItem('neurosync_last_display', String(displayText));
+            } catch (e) {}
+        }
+
+        function clearAccountSnapshot() {
+            try {
+                ['neurosync_last_user_id', 'neurosync_last_username', 'neurosync_last_display',
+                 'neurosync_last_email', 'neurosync_last_display_name'].forEach(function(k) {
+                    localStorage.removeItem(k);
+                });
+            } catch (e) {}
+        }
+
+        function markAuthSettled() {
+            authReady = true;
+            try { document.documentElement.classList.remove('auth-restoring'); } catch (e) {}
+        }
+
+        function setUserMenuUsername(username) {
+            var el = document.getElementById('userMenuUsername');
+            if (!el) return;
+            var u;
+            if (username === '') {
+                u = '';
+            } else if (username == null) {
+                try { u = normalizeUsername(localStorage.getItem('neurosync_last_username') || ''); } catch (e) { u = ''; }
+            } else {
+                u = normalizeUsername(username);
+            }
+            if (u) {
+                el.textContent = '@' + u;
+                el.style.display = 'block';
+            } else {
+                el.textContent = '';
+                el.style.display = 'none';
+            }
+        }
+
+        function applyOptimisticAuthChrome() {
+            if (!hasAuthSessionHint()) return;
+            authLoggedIn = true;
+            try { document.documentElement.classList.add('auth-restoring'); } catch (e) {}
+            try {
+                var nameEl = document.getElementById('userMenuName');
+                var cached = localStorage.getItem('neurosync_last_display');
+                if (nameEl && cached) nameEl.textContent = cached;
+                setUserMenuUsername(localStorage.getItem('neurosync_last_username') || '');
+                var btn = document.getElementById('authHeaderBtn');
+                var loginItem = document.getElementById('userMenuLoginItem');
+                var signupItem = document.getElementById('userMenuSignupItem');
+                var logoutItem = document.getElementById('userMenuLogoutItem');
+                var deleteItem = document.getElementById('userMenuDeleteAccountItem');
+                var accountItem = document.getElementById('userMenuAccountItem');
+                if (btn) btn.style.display = 'none';
+                if (loginItem) loginItem.style.display = 'none';
+                if (signupItem) signupItem.style.display = 'none';
+                if (logoutItem) logoutItem.style.display = '';
+                if (deleteItem) deleteItem.style.display = '';
+                if (accountItem) accountItem.style.display = '';
+            } catch (e2) {}
+            if (typeof applyGuestAccessLock === 'function') applyGuestAccessLock();
+        }
+
+        function closeAccountSettings() {
+            var overlay = document.getElementById('accountSettingsOverlay');
+            if (overlay) overlay.classList.remove('show');
+        }
+
+        async function openAccountSettings() {
+            if (!isUserLoggedIn()) {
+                if (typeof requireLogin === 'function') requireLogin('Log in to view your account.');
+                return;
+            }
+            var usernameEl = document.getElementById('accountSettingsUsername');
+            var displayEl = document.getElementById('accountSettingsDisplayName');
+            var emailEl = document.getElementById('accountSettingsEmail');
+            var username = '';
+            var displayName = '';
+            var email = '';
+            try {
+                username = normalizeUsername(localStorage.getItem('neurosync_last_username') || '');
+                displayName = localStorage.getItem('neurosync_last_display_name') || '';
+                email = localStorage.getItem('neurosync_last_email') || '';
+            } catch (e) {}
+            try {
+                await ensureSupabaseClient();
+                if (supabase) {
+                    var { data: { session } } = await supabase.auth.getSession();
+                    var user = session && session.user;
+                    if (user) {
+                        email = user.email || email;
+                        displayName = (user.user_metadata && user.user_metadata.display_name) || displayName;
+                        username = normalizeUsername((user.user_metadata && user.user_metadata.username) || '') || username;
+                        try {
+                            var { data: prof } = await supabase.from('profiles').select('username, display_name, email').eq('id', user.id).maybeSingle();
+                            if (prof) {
+                                if (prof.username) username = normalizeUsername(prof.username);
+                                if (prof.display_name) displayName = String(prof.display_name);
+                                if (prof.email) email = String(prof.email);
+                            }
+                        } catch (profErr) {}
+                        cacheAccountSnapshot({
+                            id: user.id,
+                            email: email,
+                            user_metadata: { username: username, display_name: displayName }
+                        }, displayName || (username ? '@' + username : email));
+                    }
+                } else {
+                    var demoRaw = localStorage.getItem('neurosync_demo_user');
+                    if (demoRaw) {
+                        var demo = JSON.parse(demoRaw);
+                        username = normalizeUsername(demo.username || '') || username;
+                        displayName = demo.display_name || displayName;
+                        email = demo.email || demo.user_email || email;
+                    }
+                }
+            } catch (err) {
+                console.warn('openAccountSettings:', err);
+            }
+            if (usernameEl) usernameEl.textContent = username ? '@' + username : 'Not set';
+            if (displayEl) displayEl.textContent = displayName || '—';
+            if (emailEl) emailEl.textContent = email || '—';
+            setUserMenuUsername(username);
+            var overlay = document.getElementById('accountSettingsOverlay');
+            if (overlay) overlay.classList.add('show');
+        }
+
+        async function handleAuthRedirectFromEmail() {
+            if (!supabase) return null;
+            try {
+                var params = new URLSearchParams(window.location.search || '');
+                var hash = String(window.location.hash || '').replace(/^#/, '');
+                var hashParams = new URLSearchParams(hash);
+                var err = params.get('error_description') || params.get('error') || hashParams.get('error_description') || hashParams.get('error');
+                if (err) {
+                    cleanAuthRedirectUrl();
+                    if (typeof showToast === 'function') showToast(decodeURIComponent(String(err).replace(/\+/g, ' ')), 'error', 7000);
+                    return null;
+                }
+                var code = params.get('code');
+                if (code) {
+                    var exchanged = await supabase.auth.exchangeCodeForSession(code);
+                    cleanAuthRedirectUrl();
+                    if (exchanged.error) throw exchanged.error;
+                    var userFromCode = exchanged.data && exchanged.data.session && exchanged.data.session.user;
+                    if (userFromCode) {
+                        await finalizeAuthSession(userFromCode, 'Email confirmed — you\'re signed in.');
+                        return userFromCode;
+                    }
+                }
+                var tokenHash = params.get('token_hash') || hashParams.get('token_hash');
+                var otpType = params.get('type') || hashParams.get('type');
+                if (tokenHash && otpType) {
+                    var verified = await supabase.auth.verifyOtp({
+                        token_hash: tokenHash,
+                        type: otpType
+                    });
+                    cleanAuthRedirectUrl();
+                    if (verified.error) throw verified.error;
+                    var userFromOtp = verified.data && verified.data.user;
+                    if (userFromOtp) {
+                        await finalizeAuthSession(userFromOtp, 'Email confirmed — you\'re signed in.');
+                        return userFromOtp;
+                    }
+                }
+                // Hash tokens are usually picked up by detectSessionInUrl on createClient.
+                if (hashParams.get('access_token') || hashParams.get('type') === 'signup') {
+                    var sess = await supabase.auth.getSession();
+                    var u = sess.data && sess.data.session && sess.data.session.user;
+                    if (u) {
+                        cleanAuthRedirectUrl();
+                        await finalizeAuthSession(u, 'Email confirmed — you\'re signed in.');
+                        return u;
+                    }
+                }
+            } catch (e) {
+                console.warn('handleAuthRedirectFromEmail:', e);
+                cleanAuthRedirectUrl();
+                if (typeof showToast === 'function') {
+                    showToast((e && e.message) ? e.message : 'Could not finish email confirmation. Try logging in.', 'error', 7000);
+                }
+            }
+            return null;
+        }
 
         function bindSupabaseAuthListener() {
             if (!supabase || supabaseAuthListenerBound) return;
@@ -11320,11 +11656,12 @@
             try {
                 supabase.auth.onAuthStateChange(function(event, session) {
                     if (session && session.user) {
-                        try { localStorage.setItem('neurosync_last_user_id', session.user.id); } catch (eId) {}
                         var displayText = session.user.user_metadata?.display_name
                             || (session.user.user_metadata?.username ? '@' + session.user.user_metadata.username : null)
                             || session.user.email;
+                        cacheAccountSnapshot(session.user, displayText);
                         updateAuthUI(displayText, true);
+                        setUserMenuUsername((session.user.user_metadata && session.user.user_metadata.username) || null);
                         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
                             ensureUserProfile(session.user).catch(function(err) {
                                 console.warn('ensureUserProfile (auth listener):', err);
@@ -11332,7 +11669,7 @@
                         }
                     } else if (event === 'SIGNED_OUT') {
                         try { localStorage.removeItem('neurosync_demo_user'); } catch (e) {}
-                        try { localStorage.removeItem('neurosync_last_user_id'); } catch (e2) {}
+                        clearAccountSnapshot();
                         try {
                             if (typeof flashcardSets !== 'undefined') flashcardSets = [];
                             if (typeof flashcardSetsLoadedForOwner !== 'undefined') flashcardSetsLoadedForOwner = null;
@@ -11475,20 +11812,38 @@
             try {
                 await ensureSupabaseClient();
                 if (supabase) {
+                    var fromEmail = await handleAuthRedirectFromEmail();
+                    if (fromEmail) {
+                        if (typeof trackUsage === 'function') trackUsage('session_start', { via: 'email_confirm' });
+                        markAuthSettled();
+                        return;
+                    }
                     const { data: { session } } = await supabase.auth.getSession();
                     if (session?.user) {
                         try { localStorage.setItem('neurosync_last_user_id', session.user.id); } catch (eId) {}
                         var displayText = session.user.user_metadata?.display_name
                             || (session.user.user_metadata?.username ? '@' + session.user.user_metadata.username : null)
                             || session.user.email;
+                        cacheAccountSnapshot(session.user, displayText);
                         // Restore UI first so a profile sync error never looks like a logout
                         updateAuthUI(displayText, true);
                         try {
                             await ensureUserProfile(session.user);
+                            var { data: prof } = await supabase.from('profiles').select('username, display_name').eq('id', session.user.id).maybeSingle();
+                            if (prof) {
+                                if (prof.username) {
+                                    try { localStorage.setItem('neurosync_last_username', normalizeUsername(prof.username)); } catch (eU) {}
+                                    setUserMenuUsername(prof.username);
+                                }
+                                if (prof.display_name) {
+                                    try { localStorage.setItem('neurosync_last_display_name', String(prof.display_name)); } catch (eD) {}
+                                }
+                            }
                         } catch (profileErr) {
                             console.warn('initAuth profile sync:', profileErr);
                         }
                         if (typeof trackUsage === 'function') trackUsage('session_start', {});
+                        markAuthSettled();
                         return;
                     }
                 }
@@ -11497,10 +11852,16 @@
                     const u = JSON.parse(demo);
                     if (typeof registerDemoProfile === 'function') registerDemoProfile(u);
                     var demoDisplay = u.display_name || u.email || u.user_email;
+                    if (u.username) {
+                        try { localStorage.setItem('neurosync_last_username', normalizeUsername(u.username)); } catch (eDemo) {}
+                    }
                     updateAuthUI(demoDisplay, true);
+                    markAuthSettled();
                     return;
                 }
                 updateAuthUI(null, false);
+                clearAccountSnapshot();
+                markAuthSettled();
             } catch (err) {
                 console.warn('initAuth:', err);
                 // Only clear UI if we truly have no saved demo session either
@@ -11508,10 +11869,13 @@
                     if (localStorage.getItem('neurosync_demo_user')) {
                         var fallback = JSON.parse(localStorage.getItem('neurosync_demo_user'));
                         updateAuthUI(fallback.display_name || fallback.email || 'Signed in', true);
+                        markAuthSettled();
                         return;
                     }
                 } catch (e2) {}
                 updateAuthUI(null, false);
+                clearAccountSnapshot();
+                markAuthSettled();
             }
         }
 
@@ -11523,6 +11887,7 @@
                 const signupItem = document.getElementById('userMenuSignupItem');
                 const logoutItem = document.getElementById('userMenuLogoutItem');
                 const deleteItem = document.getElementById('userMenuDeleteAccountItem');
+                const accountItem = document.getElementById('userMenuAccountItem');
                 const nameEl = document.getElementById('userMenuName');
                 const logoText = document.getElementById('headerLogoText');
                 if (loggedIn && email) {
@@ -11531,7 +11896,10 @@
                     if (signupItem) signupItem.style.display = 'none';
                     if (logoutItem) logoutItem.style.display = '';
                     if (deleteItem) deleteItem.style.display = '';
+                    if (accountItem) accountItem.style.display = '';
                     if (nameEl) nameEl.textContent = email;
+                    try { localStorage.setItem('neurosync_last_display', String(email)); } catch (eDisp) {}
+                    setUserMenuUsername(null);
                     if (logoText) logoText.textContent = 'Neurosync';
                 } else {
                     if (btn) btn.style.display = '';
@@ -11539,8 +11907,11 @@
                     if (signupItem) signupItem.style.display = '';
                     if (logoutItem) logoutItem.style.display = 'none';
                     if (deleteItem) deleteItem.style.display = 'none';
+                    if (accountItem) accountItem.style.display = 'none';
                     if (nameEl) nameEl.textContent = 'Guest';
+                    setUserMenuUsername('');
                     if (logoText) logoText.textContent = 'Neurosync';
+                    if (authReady) clearAccountSnapshot();
                 }
                 if (typeof applyGuestAccessLock === 'function') applyGuestAccessLock();
                 // Reload this account's flashcard sets + personal progress/rewards
@@ -11576,11 +11947,14 @@
         }
 
         var authLoggedIn = false;
+        var authReady = false;
         var pendingAuthScreen = null;
         var AUTH_FREE_SCREENS = { home: true };
 
         function isUserLoggedIn() {
             if (authLoggedIn) return true;
+            // While session is restoring, treat cached session as logged-in so UI doesn't flash guest
+            if (!authReady && hasAuthSessionHint()) return true;
             try {
                 if (localStorage.getItem('neurosync_demo_user')) return true;
             } catch (e) {}
@@ -11635,7 +12009,7 @@
 
         async function authSignOut() {
             // Drop account id first so in-memory sets cannot be saved into the wrong bucket
-            try { localStorage.removeItem('neurosync_last_user_id'); } catch (e) {}
+            clearAccountSnapshot();
             localStorage.removeItem('neurosync_demo_user');
             try {
                 if (typeof flashcardSets !== 'undefined') flashcardSets = [];
@@ -11644,6 +12018,8 @@
             if (supabase) {
                 try { await supabase.auth.signOut(); } catch (e3) {}
             }
+            authReady = true;
+            try { document.documentElement.classList.remove('auth-restoring'); } catch (e4) {}
             // Each account keeps its own storage key — just reload the guest bucket for the UI
             updateAuthUI(null, false);
             if (typeof showScreen === 'function') showScreen('home');
@@ -11795,7 +12171,10 @@
             var errEl = document.getElementById('authError');
             var emailEl = document.getElementById('authEmail');
             var email = emailEl ? emailEl.value.trim() : '';
-            if (errEl) errEl.style.display = 'none';
+            if (errEl) {
+                errEl.style.display = 'none';
+                errEl.textContent = '';
+            }
             if (!email) {
                 if (errEl) {
                     errEl.textContent = 'Enter your email above, then tap Resend confirmation email.';
@@ -11810,6 +12189,14 @@
                 }
                 return;
             }
+            if (captchaEnabled() && !__nsCaptchaToken) {
+                if (errEl) {
+                    errEl.textContent = 'Complete the captcha first, then tap Resend confirmation email.';
+                    errEl.style.display = 'block';
+                }
+                mountAuthCaptcha();
+                return;
+            }
             if (!nsRateLimit('auth-resend:' + email.toLowerCase(), 3, 120000)) {
                 if (errEl) {
                     errEl.textContent = 'Please wait a couple of minutes before requesting another email.';
@@ -11818,33 +12205,55 @@
                 return;
             }
             var btn = document.getElementById('authResendBtn');
-            if (btn) btn.disabled = true;
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Sending…';
+            }
             try {
-                var { error } = await supabase.auth.resend({
+                var payload = {
                     type: 'signup',
                     email: email,
                     options: { emailRedirectTo: getAuthEmailRedirectTo() }
-                });
+                };
+                if (captchaEnabled() && __nsCaptchaToken) {
+                    payload.options.captchaToken = __nsCaptchaToken;
+                }
+                var { data, error } = await supabase.auth.resend(payload);
+                resetAuthCaptcha();
                 if (error) throw error;
-                if (typeof showToast === 'function') {
-                    showToast('Confirmation email sent. Check inbox and spam.', 'success', 5000);
-                }
+                var okMsg = 'If that email still needs confirming, a message was sent. Check inbox and spam (from your NeuroSync / Resend address).';
                 if (errEl) {
-                    errEl.style.display = 'none';
+                    errEl.style.color = '#166534';
+                    errEl.textContent = okMsg;
+                    errEl.style.display = 'block';
                 }
+                if (typeof showToast === 'function') {
+                    showToast('Confirmation email requested. Check inbox + spam.', 'success', 6000);
+                }
+                console.log('resendConfirmationEmail ok', data || null);
             } catch (e) {
+                resetAuthCaptcha();
+                mountAuthCaptcha();
                 var msg = (e && e.message) ? e.message : 'Could not resend confirmation email.';
                 if (/already.*(confirmed|registered)|email.*confirmed/i.test(msg)) {
-                    msg = 'That email is already confirmed. Try logging in, or reset your password if needed.';
+                    msg = 'That email is already confirmed. Try logging in instead.';
+                } else if (/rate limit|over_email_send_rate_limit|429/i.test(msg)) {
+                    msg = 'Email rate limit hit. Wait a bit, or check Supabase SMTP / Resend settings.';
+                } else if (/smtp|error sending|550|invalid.*login|authentication failed/i.test(msg)) {
+                    msg = 'Email provider rejected the send. Check Supabase Custom SMTP (Resend host, API key, sender address).';
                 }
                 if (errEl) {
+                    errEl.style.color = '#dc2626';
                     errEl.textContent = msg;
                     errEl.style.display = 'block';
-                } else if (typeof showToast === 'function') {
-                    showToast(msg, 'error', 5000);
                 }
+                if (typeof showToast === 'function') showToast(msg, 'error', 6000);
+                console.warn('resendConfirmationEmail failed', e);
             } finally {
-                if (btn) btn.disabled = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Resend confirmation email';
+                }
             }
         }
 
@@ -11902,6 +12311,9 @@
                 if (error) throw error;
                 clearAccountLocalData(user.id);
                 try { await supabase.auth.signOut(); } catch (eSign) {}
+                clearAccountSnapshot();
+                authReady = true;
+                try { document.documentElement.classList.remove('auth-restoring'); } catch (eAuth) {}
                 updateAuthUI(null, false);
                 if (typeof showScreen === 'function') showScreen('home');
                 if (typeof showToast === 'function') {
@@ -11946,42 +12358,49 @@
                     }
                 } catch (e) { /* ignore */ }
             }
-                try {
-                    var list = JSON.parse(localStorage.getItem('neurosync_demo_profiles') || '[]');
-                    return list.some(function(p) {
-                        if (exceptUserId && p.id === exceptUserId) return false;
-                        return normalizeUsername(p.username) === u;
-                    });
-                } catch (e) {
-                    return false;
-                }
+            try {
+                var list = JSON.parse(localStorage.getItem('neurosync_demo_profiles') || '[]');
+                return list.some(function(p) {
+                    if (exceptUserId && p.id === exceptUserId) return false;
+                    return normalizeUsername(p.username) === u;
+                });
+            } catch (e) {
+                return false;
             }
+        }
 
         async function submitAuthForm(e) {
             e.preventDefault();
-            await ensureSupabaseClient();
-            var emailEl = document.getElementById('authEmail');
-            const passwordEl = document.getElementById('authPassword');
-            if (!emailEl || !passwordEl) return;
-            const email = emailEl.value.trim();
-            const password = passwordEl.value;
-            const errEl = document.getElementById('authError');
-            const btn = document.getElementById('authSubmitBtn');
-            const signupTab = document.getElementById('authTabSignup');
-            const isSignup = signupTab && signupTab.classList.contains('active');
-            errEl.style.display = 'none';
-            if (!nsRateLimit('auth:' + (email || 'unknown').toLowerCase(), 8, 60000)) {
-                errEl.textContent = 'Too many attempts. Wait a minute and try again.';
-                errEl.style.display = 'block';
-                return;
-            }
-            if (password.length < 8) {
-                errEl.textContent = 'Password must be at least 8 characters.';
-                errEl.style.display = 'block';
-                return;
-            }
-            btn.disabled = true;
+            var errEl = document.getElementById('authError');
+            var btn = document.getElementById('authSubmitBtn');
             try {
+                await ensureSupabaseClient();
+                var emailEl = document.getElementById('authEmail');
+                var passwordEl = document.getElementById('authPassword');
+                if (!emailEl || !passwordEl) return false;
+                var email = emailEl.value.trim();
+                var password = passwordEl.value;
+                var signupTab = document.getElementById('authTabSignup');
+                var isSignup = signupTab && signupTab.classList.contains('active');
+                if (errEl) {
+                    errEl.style.display = 'none';
+                    errEl.style.color = '#dc2626';
+                }
+                if (!nsRateLimit('auth:' + (email || 'unknown').toLowerCase(), 8, 60000)) {
+                    if (errEl) {
+                        errEl.textContent = 'Too many attempts. Wait a minute and try again.';
+                        errEl.style.display = 'block';
+                    }
+                    return false;
+                }
+                if (password.length < 8) {
+                    if (errEl) {
+                        errEl.textContent = 'Password must be at least 8 characters.';
+                        errEl.style.display = 'block';
+                    }
+                    return false;
+                }
+                if (btn) btn.disabled = true;
                 var displayNameEl = document.getElementById('authDisplayName');
                 var displayName = displayNameEl ? displayNameEl.value.trim() : '';
                 var username = '';
@@ -11994,17 +12413,17 @@
                     }
                 }
                 if (supabase) {
-                    let user = null;
-                    let session = null;
+                    var user = null;
+                    var session = null;
                     if (isSignup) {
                         var metaData = { username: username };
                         if (displayName) metaData.display_name = displayName;
                         if (captchaEnabled() && !__nsCaptchaToken) {
                             throw new Error('Please complete the captcha first.');
                         }
-                        const { data, error } = await supabase.auth.signUp({
-                            email,
-                            password,
+                        var signUpRes = await supabase.auth.signUp({
+                            email: email,
+                            password: password,
                             options: {
                                 data: metaData,
                                 captchaToken: __nsCaptchaToken || undefined,
@@ -12012,9 +12431,9 @@
                             }
                         });
                         resetAuthCaptcha();
-                        if (error) throw error;
-                        user = data?.user;
-                        session = data?.session || null;
+                        if (signUpRes.error) throw signUpRes.error;
+                        user = signUpRes.data && signUpRes.data.user;
+                        session = (signUpRes.data && signUpRes.data.session) || null;
                         if (user) trackUsage('signup', { email: user.email, username: username });
                         if (!session) {
                             if (typeof showToast === 'function') {
@@ -12023,31 +12442,34 @@
                             closeAuthModal();
                             switchAuthTab('login');
                             openAuthModal('login');
-                            return;
+                            return false;
                         }
                         if (typeof showToast === 'function') showToast('Account created. You\'re signed in.', 'success');
                     } else {
                         if (captchaEnabled() && !__nsCaptchaToken) {
                             throw new Error('Please complete the captcha first.');
                         }
-                        const { data, error } = await supabase.auth.signInWithPassword({
-                            email,
-                            password,
+                        var signInRes = await supabase.auth.signInWithPassword({
+                            email: email,
+                            password: password,
                             options: { captchaToken: __nsCaptchaToken || undefined }
                         });
                         resetAuthCaptcha();
-                        if (error) throw error;
-                        user = data?.user;
-                        session = data?.session || null;
+                        if (signInRes.error) throw signInRes.error;
+                        user = signInRes.data && signInRes.data.user;
+                        session = (signInRes.data && signInRes.data.session) || null;
                         if (user) trackUsage('session_start', {});
                         if (typeof showToast === 'function') showToast('Welcome back!', 'success');
                     }
                     if (!session) {
                         var recovered = await supabase.auth.getSession();
-                        session = recovered?.data?.session || null;
-                        if (session?.user) user = session.user;
+                        session = recovered && recovered.data && recovered.data.session || null;
+                        if (session && session.user) user = session.user;
                     }
-                    if (!user) user = (await supabase.auth.getUser()).data?.user;
+                    if (!user) {
+                        var got = await supabase.auth.getUser();
+                        user = got && got.data && got.data.user;
+                    }
                     if (!session && !user) {
                         throw new Error('Signed in, but no session was saved. Try logging in again.');
                     }
@@ -12059,7 +12481,9 @@
                     if (user && user.id) {
                         try { localStorage.setItem('neurosync_last_user_id', user.id); } catch (e) {}
                     }
-                    var displayText = (user?.user_metadata?.display_name) || (user?.user_metadata?.username ? '@' + user.user_metadata.username : null) || user?.email;
+                    var displayText = (user && user.user_metadata && user.user_metadata.display_name)
+                        || (user && user.user_metadata && user.user_metadata.username ? '@' + user.user_metadata.username : null)
+                        || (user && user.email);
                     updateAuthUI(displayText, true);
                 } else {
                     if (!ALLOW_DEMO_AUTH || (SUPABASE_URL && SUPABASE_URL !== 'YOUR_SUPABASE_URL')) {
@@ -12072,14 +12496,6 @@
                         username: username || null
                     };
                     if (isSignup) {
-                        var existingDemo = null;
-                        try {
-                            var demoListPre = JSON.parse(localStorage.getItem(DEMO_PROFILES_KEY) || '[]');
-                            existingDemo = demoListPre.find(function(p) { return (p.email || '').trim().toLowerCase() === email.toLowerCase(); });
-                        } catch (e) {}
-                        if (existingDemo && existingDemo.username && normalizeUsername(existingDemo.username) !== username) {
-                            // Re-signup with same email keeps that account's username unless they still own it.
-                        }
                         if (await isUsernameTaken(username, demoUser.id)) {
                             throw new Error('That username is already taken. Pick a different user id. Display names can match, usernames cannot.');
                         }
@@ -12106,22 +12522,31 @@
                     setTimeout(function() { if (typeof publishSetById === 'function') publishSetById(pendingId); }, 400);
                 }
             } catch (err) {
-                errEl.textContent = err.message || 'Something went wrong.';
-                if (/email not confirmed|confirm your email|Email not confirmed/i.test(String(err.message || ''))) {
-                    errEl.textContent = 'Confirm your email first. Enter your email above, then tap Resend confirmation email.';
-                }
-                if (/captcha_token|captcha protection/i.test(String(err.message || ''))) {
-                    if (!captchaEnabled()) {
-                        errEl.textContent = 'Supabase captcha is ON, but no site key is configured yet. Set CAPTCHA_SITE_KEY in Netlify env (or config.local.js), or turn captcha OFF in Supabase Auth → Bot and Abuse Protection.';
-                    } else {
-                        errEl.textContent = 'Captcha failed or expired. Complete the captcha again, then retry.';
-                        resetAuthCaptcha();
-                        mountAuthCaptcha();
+                var emsg = String((err && err.message) || 'Something went wrong.');
+                if (errEl) {
+                    errEl.style.color = '#dc2626';
+                    errEl.textContent = emsg;
+                    if (/email not confirmed|confirm your email|Email not confirmed/i.test(emsg)) {
+                        errEl.textContent = 'Confirm your email first. Enter your email above, then tap Resend confirmation email.';
+                    } else if (/invalid login credentials|invalid_credentials|Invalid login/i.test(emsg)) {
+                        errEl.textContent = 'Email or password is wrong. Use the same password you signed up with.';
+                    } else if (/captcha_token|captcha protection/i.test(emsg)) {
+                        if (!captchaEnabled()) {
+                            errEl.textContent = 'Supabase captcha is ON, but no site key is configured yet. Set CAPTCHA_SITE_KEY in Netlify env, or turn captcha OFF in Supabase Auth → Bot and Abuse Protection.';
+                        } else {
+                            errEl.textContent = 'Captcha failed or expired. Complete the captcha again, then retry.';
+                            resetAuthCaptcha();
+                            mountAuthCaptcha();
+                        }
                     }
+                    errEl.style.display = 'block';
+                } else if (typeof showToast === 'function') {
+                    showToast(emsg, 'error', 5000);
                 }
-                errEl.style.display = 'block';
+            } finally {
+                if (btn) btn.disabled = false;
             }
-            btn.disabled = false;
+            return false;
         }
 
         async function trackUsage(eventType, metadata) {
@@ -24740,6 +25165,7 @@ Keep up the great work!
         // Restore auth session when DOM is ready (don't break buttons if auth fails)
         function runInitAuth() {
             try {
+                applyOptimisticAuthChrome();
                 if (typeof applyGuestAccessLock === 'function') applyGuestAccessLock();
                 initAuth();
             } catch (e) { console.warn('Auth init:', e); }
